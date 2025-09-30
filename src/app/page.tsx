@@ -94,7 +94,8 @@ function Table({ rows }: { rows: Record<string, any>[] }) {
       </div>
     );
   }
-  const cols = Object.keys(rows[0]).filter((c) => c !== 'password'); // 안전: password 숨김
+  // password 컬럼 숨김
+  const cols = Object.keys(rows[0]).filter((c) => c !== 'password');
 
   return (
     <div className="overflow-auto rounded-xl border bg-white/60 dark:bg-neutral-900/60">
@@ -183,19 +184,27 @@ function Pagination({
 
 /* ─────────── 페이지 ─────────── */
 export default async function Home({
+  // ✅ Next.js 15: searchParams는 비동기 → Promise 타입으로 받고 await 필요
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const page = Number(searchParams?.page ?? '1') || 1;
-  const pageSize = Number(searchParams?.pageSize ?? '20') || 20;
+  // helper: string | string[] | undefined → string
+  const pick = (v: string | string[] | undefined, fallback = '') =>
+    Array.isArray(v) ? (v[0] ?? fallback) : (v ?? fallback);
+
+  // ✅ 비동기 해제
+  const sp = await searchParams;
+
+  const page = Number(pick(sp.page, '1')) || 1;
+  const pageSize = Number(pick(sp.pageSize, '20')) || 20;
 
   // 필터값 추출
-  const school = typeof searchParams?.school === 'string' ? searchParams!.school : '';
-  const excludeTest = (typeof searchParams?.excludeTest === 'string' ? searchParams!.excludeTest : '').toLowerCase();
-  const q = typeof searchParams?.q === 'string' ? searchParams!.q : '';
+  const school = pick(sp.school);
+  const excludeTest = pick(sp.excludeTest).toLowerCase();
+  const q = pick(sp.q);
 
-  // API 호출용 쿼리스트링 구성
+  // API 호출용 쿼리스트링
   const qs = new URLSearchParams();
   qs.set('page', String(page));
   qs.set('pageSize', String(pageSize));
@@ -209,7 +218,7 @@ export default async function Home({
     safeGet<ApiEnvelope>(`/api/licenses`),
   ]);
 
-  // Users 결과
+  // Users
   const usersError =
     usersRes.status === 'rejected'
       ? usersRes.reason?.message ?? '요청 실패'
@@ -223,13 +232,13 @@ export default async function Home({
   const usersPage = usersRes.status === 'fulfilled' ? usersRes.value.page ?? page : page;
   const usersTotalPages = usersRes.status === 'fulfilled' ? usersRes.value.totalPages ?? 1 : 1;
 
-  // ✅ 총합/표시 범위 계산
+  // ✅ 총합/표시 범위
   const usersTotal =
     usersRes.status === 'fulfilled' ? usersRes.value.total ?? users.length : users.length;
   const usersStart = usersTotal === 0 ? 0 : (usersPage - 1) * pageSize + 1;
   const usersEnd = Math.min(usersTotal, usersPage * pageSize);
 
-  // Licenses 결과
+  // Licenses
   const licensesError =
     licensesRes.status === 'rejected'
       ? licensesRes.reason?.message ?? '요청 실패'
@@ -302,7 +311,7 @@ export default async function Home({
         >
           {/* ── 검색 폼 (GET) ── */}
           <form action="/" method="GET" className="mb-4 grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-            {/* 페이지는 검색 시 1로 리셋 */}
+            {/* 검색 시 페이지 1로 리셋 */}
             <input type="hidden" name="page" value="1" />
 
             <div className="md:col-span-3">
